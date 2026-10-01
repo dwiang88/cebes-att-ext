@@ -1,13 +1,11 @@
 node_modules/
-.wrangler/
-.dev.vars
-.dev.vars.*
-!.dev.vars.example
+.vercel/
 .env
 .env.*
+.env.local
+.env.local.*
+!.env.local
 !.env.example
-deno.lock
-.netlify/
 .DS_Store
 Thumbs.db
 *.log
