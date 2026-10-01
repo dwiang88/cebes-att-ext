@@ -1,0 +1,11 @@
+{
+  "name": "absen",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Glassmorphism PWA for Cebes Connect attendance (Vercel deployment).",
+  "scripts": {
+    "test": "node test/api.test.cjs && node test/frontend.test.cjs",
+    "dev": "vercel dev --listen 3000"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/**/*.{js,cjs,mjs}": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" }
+  ]
+}

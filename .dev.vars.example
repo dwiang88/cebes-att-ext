@@ -1,0 +1,7 @@
+# Copy to .dev.vars for `wrangler dev`, or set both as encrypted secrets:
+#   npx wrangler secret put APP_EMAIL
+#   npx wrangler secret put APP_PASSWORD
+# Never commit the real values.
+
+APP_EMAIL=your.email@cebes.co.id
+APP_PASSWORD=your-password-here

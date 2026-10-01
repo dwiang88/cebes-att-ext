@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Absen · Clock In / Clock Out</title>
+<meta name="description" content="PWA absensi clock in dan clock out sederhana untuk Cebes Connect." />
+<meta name="theme-color" content="#050b14" />
+<meta name="color-scheme" content="dark" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Absen" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['Outfit', 'system-ui', 'sans-serif'],
+          body: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        },
+        colors: {
+          ink: { 900: '#050b14', 800: '#08111d', 700: '#0a1628' },
+          brand: { emerald: '#10b981', blue: '#3b82f6', amber: '#fbbf24' },
+        },
+      },
+    },
+  };
+</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+<style>
+  :root { --emerald: 16 185 129; --blue: 59 130 246; --amber: 251 191 36; }
+
+  * { -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: '"Plus Jakarta Sans"', system-ui, sans-serif;
+    background: #050b14;
+    color: #e8eef8;
+    overflow-x: hidden;
+  }
+
+  .font-display { font-family: 'Outfit', system-ui, sans-serif; }
+
+  /* ---------------------------------------------------------- glass system */
+  .glass-soft {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  /* ------------------------------------------------------------ background */
+  .bg-layer { position: fixed; inset: 0; z-index: -3; overflow: hidden; }
+
+  .blob {
+    position: absolute;
+    border-radius: 48% 52% 60% 40% / 42% 45% 55% 58%;
+    filter: blur(90px);
+    opacity: 0.5;
+    will-change: transform, border-radius;
+  }
+
+  .blob-1 {
+    width: 38rem; height: 38rem; top: -16rem; left: -12rem;
+    background: radial-gradient(circle at 35% 35%, rgba(var(--emerald), 0.7), transparent 62%);
+    animation: morph 19s ease-in-out infinite, drift 26s ease-in-out infinite;
+  }
+
+  .blob-2 {
+    width: 34rem; height: 34rem; bottom: -12rem; right: -12rem;
+    background: radial-gradient(circle at 60% 40%, rgba(var(--blue), 0.65), transparent 62%);
+    animation: morph 23s ease-in-out infinite reverse, drift 31s ease-in-out infinite;
+  }
+
+  @keyframes morph {
+    0%, 100% { border-radius: 48% 52% 60% 40% / 42% 45% 55% 58%; }
+    33% { border-radius: 62% 38% 44% 56% / 58% 40% 60% 42%; }
+    66% { border-radius: 40% 60% 55% 45% / 38% 62% 38% 62%; }
+  }
+
+  @keyframes drift {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(3rem, 2rem, 0) scale(1.1); }
+  }
+
+  .noise {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0.28; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  }
+
+  /* --------------------------------------------------------------- ripples */
+  .ripple { position: relative; overflow: hidden; isolation: isolate; }
+  .ripple .ripple-wave {
+    position: absolute; border-radius: 50%; transform: scale(0); pointer-events: none;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 70%);
+    animation: rippleOut 0.62s ease-out forwards;
+  }
+  @keyframes rippleOut { to { transform: scale(2.6); opacity: 0; } }
+
+  /* ---------------------------------------------------------- clock button */
+  .btn-clock { transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), filter 0.25s ease, opacity 0.25s ease; }
+  .btn-clock:hover:not(:disabled) { transform: translateY(-2px) scale(1.012); }
+  .btn-clock:active:not(:disabled) { transform: translateY(0) scale(0.985); }
+  .btn-clock:disabled { filter: saturate(0.55) brightness(0.85); cursor: not-allowed; }
+
+  .state-in  { background-image: linear-gradient(135deg, #059669, #10b981 45%, #34d399); box-shadow: 0 20px 55px -16px rgba(16, 185, 129, 0.8); }
+  .state-out { background-image: linear-gradient(135deg, #1d4ed8, #3b82f6 45%, #60a5fa); box-shadow: 0 20px 55px -16px rgba(59, 130, 246, 0.8); }
+
+  /* ------------------------------------------------------ location switch */
+  .loc-switch {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 1.1rem;
+  }
+
+  .loc-thumb {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc(50% - 6px);
+    border-radius: 0.85rem;
+    background: rgba(255, 255, 255, 0.13);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), background 0.32s ease;
+  }
+
+  .loc-thumb.on { transform: translateX(calc(100% + 4px)); }
+
+  .loc-option {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 0%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.7rem 0.5rem;
+    border-radius: 0.85rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #94a3b8;
+    transition: color 0.25s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .loc-option[aria-pressed='true'] { color: #ffffff; }
+  .loc-option:active { transform: scale(0.97); }
+
+  /* ---------------------------------------------------------------- misc */
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+
+  .spin { animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .pulse-dot { animation: softPulse 2.4s ease-in-out infinite; }
+  @keyframes softPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .toast-in { animation: toastIn 0.42s cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 99px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    .reveal { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+
+<body class="antialiased">
+  <div class="bg-layer" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+  <div class="noise" aria-hidden="true"></div>
+
+  <div id="toastWrap" class="pointer-events-none fixed inset-x-0 top-0 z-50 mx-auto flex w-full max-w-sm flex-col gap-2 px-4 pt-4" role="status" aria-live="polite"></div>
+
+  <!-- mobile-width column, centred on larger screens -->
+  <div class="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-sm flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
+
+    <header class="reveal flex items-center gap-3">
+      <div class="glass-soft flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
+        <i class="fa-solid fa-fingerprint text-xl text-emerald-300"></i>
+      </div>
+      <div class="min-w-0 flex-1">
+        <p id="userName" class="truncate text-sm font-semibold leading-tight text-slate-100">Memuat…</p>
+        <p id="userRole" class="truncate text-[0.68rem] leading-tight text-slate-500">Menghubungkan…</p>
+      </div>
+      <button id="installBtn" type="button" aria-label="Pasang aplikasi"
+        class="glass-soft hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-200 transition hover:bg-white/10 active:scale-95">
+        <i class="fa-solid fa-download"></i>
+      </button>
+    </header>
+
+    <main class="flex flex-1 flex-col items-center justify-center text-center">
+      <p class="reveal text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-slate-400" style="transition-delay:60ms">
+        Total hari ini
+      </p>
+
+      <div class="reveal mt-5 flex items-baseline justify-center" style="transition-delay:120ms">
+        <span id="totalHours" class="font-display tnum text-[clamp(3.6rem,22vw,5rem)] font-semibold leading-none tracking-tighter">0j</span>
+        <span id="totalMinutes" class="font-display tnum ml-2 text-[clamp(3.6rem,22vw,5rem)] font-semibold leading-none tracking-tighter text-emerald-300">00m</span>
+        <span id="totalSeconds" class="tnum ml-1.5 w-9 text-left text-base font-medium text-slate-500 opacity-0 transition-opacity duration-300">00d</span>
+      </div>
+
+      <p id="clockDate" class="reveal mt-4 text-xs font-medium text-slate-400" style="transition-delay:180ms">—</p>
+
+      <p class="reveal mt-3 flex items-center justify-center gap-2 text-center text-[0.7rem] text-slate-500" style="transition-delay:200ms">
+        <span id="liveDot" class="hidden h-1.5 w-1.5 rounded-full bg-blue-400 pulse-dot"></span>
+        <span id="statusLine">Menyinkronkan…</span>
+        <span id="syncDot" class="h-1.5 w-1.5 rounded-full bg-amber-400 transition-colors" title="Status sinkronisasi"></span>
+      </p>
+    </main>
+
+    <div class="reveal" style="transition-delay:240ms">
+      <div class="loc-switch glass-soft mb-3" role="group" aria-label="Lokasi kerja">
+        <span id="locThumb" class="loc-thumb" aria-hidden="true"></span>
+        <button type="button" class="loc-option" data-location="WorkFromHome" aria-pressed="true">
+          <i class="fa-solid fa-house text-[0.7rem]"></i><span>Rumah</span>
+        </button>
+        <button type="button" class="loc-option" data-location="Office" aria-pressed="false">
+          <i class="fa-solid fa-building text-[0.7rem]"></i><span>Kantor</span>
+        </button>
+      </div>
+
+      <button id="clockBtn" type="button"
+        class="btn-clock ripple state-in flex w-full items-center justify-center gap-3 rounded-3xl px-6 py-6 text-base font-bold tracking-[0.06em] text-white">
+        <i id="clockBtnIcon" class="fa-solid fa-right-to-bracket"></i>
+        <span id="clockBtnText">CLOCK IN</span>
+        <i id="clockBtnSpin" class="fa-solid fa-circle-notch spin hidden"></i>
+      </button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ====================================================== configuration */
+  const ENDPOINTS = {
+    today: '/api/today',
+    clockIn: '/api/clock-in',
+    clockOut: '/api/clock-out',
+  };
+  const DEFAULT_LOCATION = 'WorkFromHome';
+  const LOCATION_LABELS = { WorkFromHome: 'Rumah', Office: 'Kantor', ClientSite: 'Client', FieldWork: 'Lapangan' };
+  const CACHE_KEY = 'absen.today.v1';
+  const LOCATION_KEY = 'absen.location.v1';
+  const SYNC_INTERVAL_MS = 60000;
+
+  /* ================================================================ dom */
+  const els = {
+    userName: document.getElementById('userName'),
+    userRole: document.getElementById('userRole'),
+    totalHours: document.getElementById('totalHours'),
+    totalMinutes: document.getElementById('totalMinutes'),
+    totalSeconds: document.getElementById('totalSeconds'),
+    clockDate: document.getElementById('clockDate'),
+    clockBtn: document.getElementById('clockBtn'),
+    clockBtnText: document.getElementById('clockBtnText'),
+    clockBtnIcon: document.getElementById('clockBtnIcon'),
+    clockBtnSpin: document.getElementById('clockBtnSpin'),
+    statusLine: document.getElementById('statusLine'),
+    liveDot: document.getElementById('liveDot'),
+    syncDot: document.getElementById('syncDot'),
+    locThumb: document.getElementById('locThumb'),
+    locOptions: [...document.querySelectorAll('.loc-option')],
+    installBtn: document.getElementById('installBtn'),
+    toastWrap: document.getElementById('toastWrap'),
+  };
+
+  /* Server-authoritative shift state. `openSince` lets the total tick locally
+     between syncs without ever diverging from the server's own arithmetic. */
+  const state = {
+    busy: false,
+    syncing: false,
+    isOpen: false,
+    baseMs: 0,
+    openSince: null,
+    clockIn: null,
+    name: null,
+    workLocation: DEFAULT_LOCATION,
+  };
+
+  /* ------------------------------------------------------------- location */
+  const readLocation = () => {
+    try {
+      const saved = localStorage.getItem(LOCATION_KEY);
+      return saved && LOCATION_LABELS[saved] ? saved : DEFAULT_LOCATION;
+    } catch { return DEFAULT_LOCATION; }
+  };
+
+  function selectLocation(location, { persist = true } = {}) {
+    const value = LOCATION_LABELS[location] ? location : DEFAULT_LOCATION;
+    state.workLocation = value;
+    if (persist) { try { localStorage.setItem(LOCATION_KEY, value); } catch { /* private mode */ } }
+
+    els.locOptions.forEach((option) => {
+      option.setAttribute('aria-pressed', String(option.dataset.location === value));
+    });
+    els.locThumb.classList.toggle('on', value !== DEFAULT_LOCATION);
+  }
+
+  /* ============================================================ utilities */
+  const pad = (n) => String(n).padStart(2, '0');
+  const timeOf = (iso) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const escapeHtml = (str) => String(str).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  /* ------------------------------------------------------------- caching */
+  /** Last known server state, so the UI can paint before/without a sync. */
+  const readCache = () => {
+    try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch { return null; }
+  };
+  const writeCache = (patch) => {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ...(readCache() || {}), ...patch })); } catch { /* private mode */ }
+  };
+
+  /** Converts the API's /attendance/today payload into local shift state. */
+  function applyAttendance(attendance, profile) {
+    const records = Array.isArray(attendance?.records) ? attendance.records : [];
+
+    const completedMs = records
+      .filter((r) => r.clockIn && r.clockOut)
+      .reduce((sum, r) => sum + (r.workedMinutes || 0), 0) * 60000;
+
+    const openRecord = records.find((r) => r.clockIn && !r.clockOut);
+    const isOpen = Boolean(attendance?.isClockedIn ?? openRecord);
+    const openSince = openRecord ? new Date(openRecord.clockIn).getTime() : null;
+
+    state.isOpen = isOpen;
+    state.baseMs = Number.isFinite(openSince) ? completedMs + (Date.now() - openSince) : completedMs;
+    state.openSince = isOpen && Number.isFinite(openSince) ? openSince : null;
+    state.clockIn = openRecord?.clockIn ?? null;
+
+    if (profile) {
+      state.name = profile.name ?? null;
+      writeCache({ name: state.name, role: profile.role ?? null });
+    }
+
+    writeCache({
+      isOpen: state.isOpen,
+      baseMs: state.baseMs,
+      openSince: state.openSince,
+      clockIn: state.clockIn,
+      at: Date.now(),
+    });
+  }
+
+  /** Total elapsed ms right now, ticking while a shift is open. */
+  const elapsedMs = () => state.baseMs + (state.openSince ? Math.max(0, Date.now() - state.openSince) : 0);
+
+  /* --------------------------------------------------------------- toast */
+  const ICONS = { success: 'fa-circle-check', error: 'fa-triangle-exclamation', info: 'fa-circle-info' };
+  const TONES = { success: 'text-emerald-300', error: 'text-rose-300', info: 'text-blue-300' };
+
+  function toast(message, tone = 'info', ttl = 4000) {
+    const node = document.createElement('div');
+    node.className = 'glass-soft toast-in pointer-events-auto flex items-start gap-3 rounded-2xl p-4 text-sm';
+    node.innerHTML = `
+      <i class="fa-solid ${ICONS[tone] || ICONS.info} ${TONES[tone] || TONES.info} mt-0.5"></i>
+      <p class="flex-1 leading-relaxed text-slate-100">${escapeHtml(message)}</p>
+      <button type="button" class="text-slate-500 transition hover:text-slate-200" aria-label="Tutup notifikasi">
+        <i class="fa-solid fa-xmark"></i>
+      </button>`;
+    const remove = () => {
+      node.style.transition = 'opacity .3s ease, transform .3s ease';
+      node.style.opacity = '0';
+      node.style.transform = 'translateY(-8px)';
+      setTimeout(() => node.remove(), 300);
+    };
+    node.querySelector('button').addEventListener('click', remove);
+    els.toastWrap.appendChild(node);
+    setTimeout(remove, ttl);
+  }
+
+  /* ----------------------------------------------------------------- api */
+  async function api(path, options = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const res = await fetch(path, {
+        method: options.method || 'GET',
+        headers: options.body ? { 'content-type': 'application/json' } : undefined,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        signal: controller.signal,
+        cache: 'no-store',
+        credentials: 'omit',
+      });
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+      if (!res.ok) {
+        const message = data?.error?.message || data?.message || `Permintaan gagal (HTTP ${res.status}).`;
+        const err = new Error(message);
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error('Server tidak merespons dalam 20 detik.');
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /* ------------------------------------------------------------- render */
+  const dateFmt = new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: '2-digit', month: 'long' });
+
+  function setBusy(busy) {
+    state.busy = busy;
+    els.clockBtn.disabled = busy;
+    els.clockBtnSpin.classList.toggle('hidden', !busy);
+  }
+
+  function render() {
+    const { isOpen } = state;
+    const totalMs = elapsedMs();
+
+    const totalSeconds = Math.floor(totalMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    els.totalHours.textContent = `${hours}j`;
+    els.totalMinutes.textContent = `${pad(minutes)}m`;
+    els.totalSeconds.textContent = `${pad(seconds)}d`;
+    els.totalSeconds.classList.toggle('opacity-0', !(isOpen && totalMs > 0));
+
+    els.clockBtn.classList.toggle('state-in', !isOpen);
+    els.clockBtn.classList.toggle('state-out', isOpen);
+    els.clockBtnText.textContent = isOpen ? 'CLOCK OUT' : 'CLOCK IN';
+    els.clockBtnIcon.className = isOpen ? 'fa-solid fa-right-from-bracket' : 'fa-solid fa-right-to-bracket';
+
+    els.liveDot.classList.toggle('hidden', !isOpen);
+    els.syncDot.classList.toggle('bg-emerald-400', !state.syncing);
+    els.syncDot.classList.toggle('bg-amber-400', state.syncing);
+
+    els.statusLine.textContent = isOpen && state.clockIn
+      ? `Masuk pukul ${timeOf(state.clockIn)} · sedang berjalan`
+      : `Lokasi · ${LOCATION_LABELS[state.workLocation] || state.workLocation}`;
+  }
+
+  /* ------------------------------------------------------------- clocking */
+  const looksLike = (message, words) => words.some((w) => message.toLowerCase().includes(w));
+
+  /** Pulls server-authoritative attendance state from /api/today. */
+  async function sync({ silent = true } = {}) {
+    if (state.syncing) return null;
+    state.syncing = true;
+    render();
+
+    try {
+      const data = await api(ENDPOINTS.today);
+      applyAttendance(data.attendance, data.profile);
+      if (!silent) toast('Data absensi diperbarui.', 'success', 2000);
+      return data;
+    } catch (err) {
+      if (!silent) toast(err.message, 'error', 6000);
+      return null;
+    } finally {
+      state.syncing = false;
+      render();
+    }
+  }
+
+  /** Sends the clock request, transparently re-authenticating once on 401. */
+  async function sendClock(isOpen, payload) {
+    const endpoint = isOpen ? ENDPOINTS.clockOut : ENDPOINTS.clockIn;
+    try {
+      return await api(endpoint, { method: 'POST', body: payload });
+    } catch (err) {
+      if (err.status !== 401) throw err;
+      toast('Sesi kedaluwarsa, menyambung ulang…', 'info', 2000);
+      return api(endpoint, { method: 'POST', body: payload });
+    }
+  }
+
+  async function doClock() {
+    if (state.busy) return;
+
+    const isOpen = state.isOpen;
+    setBusy(true);
+    try {
+      const result = await sendClock(isOpen, {
+        latitude: null,
+        longitude: null,
+        workLocation: state.workLocation,
+      });
+      const time = timeOf(result?.at || new Date().toISOString());
+      toast(isOpen ? `Clock out tercatat pukul ${time}.` : `Clock in tercatat pukul ${time}.`, 'success');
+
+      // Trust the server: re-read today's attendance instead of assuming.
+      const synced = await sync({ silent: true });
+      if (!synced) toast('Tersimpan di server, tetapi sinkronisasi gagal. Buka ulang aplikasi.', 'info', 5000);
+    } catch (err) {
+      if (looksLike(err.message, ['already', 'sudah'])) {
+        toast('Server mencatat kamu sudah clock in.', 'info');
+      } else if (looksLike(err.message, ['not clock', 'belum', 'tidak clock', 'no attendance'])) {
+        toast('Server mencatat kamu belum clock in hari ini.', 'info');
+      } else {
+        toast(err.message, 'error', 6000);
+      }
+      await sync({ silent: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* --------------------------------------------------------------- extras */
+  function ripple(event) {
+    const btn = event.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const wave = document.createElement('span');
+    wave.className = 'ripple-wave';
+    wave.style.width = wave.style.height = `${size}px`;
+    wave.style.left = `${event.clientX - rect.left - size / 2}px`;
+    wave.style.top = `${event.clientY - rect.top - size / 2}px`;
+    btn.appendChild(wave);
+    setTimeout(() => wave.remove(), 640);
+  }
+
+  function wireReveals() {
+    const items = document.querySelectorAll('.reveal');
+    if (!('IntersectionObserver' in window)) { items.forEach((i) => i.classList.add('in')); return; }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('in');
+        io.unobserve(entry.target);
+      });
+    }, { threshold: 0.1 });
+    items.forEach((i) => io.observe(i));
+  }
+
+  /* ------------------------------------------------------------- pwa bits */
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredPrompt = event;
+    els.installBtn.classList.remove('hidden');
+    els.installBtn.classList.add('flex');
+  });
+
+  els.installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') toast('Absen dipasang di perangkatmu.', 'success');
+    deferredPrompt = null;
+    els.installBtn.classList.add('hidden');
+    els.installBtn.classList.remove('flex');
+  });
+
+  window.addEventListener('appinstalled', () => {
+    els.installBtn.classList.add('hidden');
+    els.installBtn.classList.remove('flex');
+  });
+
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => { /* offline shell unavailable */ });
+    });
+  }
+
+  /* ------------------------------------------------------------------ init */
+  els.clockBtn.addEventListener('click', (event) => { ripple(event); doClock(); });
+  els.locOptions.forEach((option) => {
+    option.addEventListener('click', () => {
+      selectLocation(option.dataset.location);
+      render();
+    });
+  });
+
+  wireReveals();
+
+  selectLocation(readLocation(), { persist: false });
+
+  // Paint from the last known server state, then reconcile with /api/today.
+  const cached = readCache();
+  if (cached) {
+    state.isOpen = Boolean(cached.isOpen);
+    state.baseMs = Number(cached.baseMs) || 0;
+    state.openSince = Number.isFinite(cached.openSince) ? cached.openSince : null;
+    state.clockIn = cached.clockIn ?? null;
+    state.name = cached.name ?? null;
+  }
+  if (state.name) {
+    els.userName.textContent = state.name;
+    els.userRole.textContent = cached?.role || 'Absen';
+  }
+
+  els.clockDate.textContent = dateFmt.format(new Date());
+  render();
+
+  sync({ silent: false }).then((data) => {
+    if (!data) {
+      els.userRole.textContent = 'Sinkronisasi gagal';
+      els.statusLine.textContent = 'Menampilkan data tersimpan';
+      return;
+    }
+    const { profile, attendance } = data;
+    els.userName.textContent = profile?.name || 'Karyawan';
+    els.userRole.textContent = [profile?.role, profile?.email].filter(Boolean).join(' · ');
+    document.title = `Absen · ${(profile?.name || '').split(' ')[0] || ''}`.trim();
+    els.statusLine.dataset.day = attendance?.date || '';
+  });
+
+  // Keep the displayed total in step with the server without user interaction.
+  setInterval(() => { render(); if (!state.busy && !state.syncing) sync(); }, SYNC_INTERVAL_MS);
+  setInterval(render, 1000);
+
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+  window.addEventListener('online', () => sync());
+})();
+</script>
+</body>
+</html>
